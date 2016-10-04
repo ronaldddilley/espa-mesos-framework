@@ -1,0 +1,68 @@
+{
+    "jobs": [
+        {
+            "cpus": 1,
+            "disk": 10000,
+            "mem": 4000,
+            "order": {
+                "customization-options": {
+                    "image-extents": {
+                        "max-x": null,
+                        "max-y": null,
+                        "min-x": null,
+                        "min-y": null,
+                        "units": null
+                    },
+                    "output-format": "envi",
+                    "pixel-resolution": {
+                        "size": null,
+                        "units": null
+                    },
+                    "reprojection": {
+                        "central_meridian": null,
+                        "datum": null,
+                        "false_easting": null,
+                        "false_northing": null,
+                        "latitude-true-scale": null,
+                        "longitude-pole": null,
+                        "north": null,
+                        "origin-lattitude": null,
+                        "projection": null,
+                        "standard-parallel-1": null,
+                        "standard-parallel-2": null,
+                        "zone": null
+                    },
+                    "resample-method": "near"
+                },
+                "developer-options": [
+                    "dev-mode",
+                    "dev-intermediate",
+                    "debug"
+                ],
+                "espa_api": "skip_api",
+                "input-product-id": "LE07_L1TP_029029_20160728_20160831_01_A1",
+                "input-url": "file:///home/espa/input-data/LE07/LE07_L1TP_029029_20160728_20160831_01_A1.tar.gz",
+                "order-id": "1010101",
+                "product-options": [
+                    "cfmask",
+                    "customized-source-data",
+                    "dynamic-surface-water-extent",
+                    "land-surface-temperature",
+                    "source-metadata",
+                    "surface-reflectance",
+                    "sr-evi",
+                    "sr-msavi",
+                    "sr-nbr",
+                    "sr-nbr2",
+                    "sr-ndmi",
+                    "sr-ndvi",
+                    "sr-savi",
+                    "sr-thermal",
+                    "sr-toa",
+                    "statistics"
+                ],
+                "product_type": "landsat"
+            }
+        }
+    ]
+}
