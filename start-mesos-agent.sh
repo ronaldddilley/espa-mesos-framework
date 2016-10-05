@@ -29,4 +29,5 @@ sudo ${sbin_path}/mesos-agent \
     --master=${master_node}:${master_port} \
     --work_dir=${work_dir} \
     --external_log_file=${agent_log} \
-    --resources=${resources}
+    --resources=${resources} \
+    --containerizers=docker
