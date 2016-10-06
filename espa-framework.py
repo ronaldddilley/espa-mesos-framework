@@ -104,7 +104,8 @@ class ESPA_Scheduler(MesosScheduler):
             driver.stop()
 
         # If the job queue is empty, check for more
-        if not self.job_queue:
+        # TODO TODO TODO - Make the job queue size configurable
+        if len(self.job_queue) < 2000:
             self.job_queue.extend(get_jobs(self.job_filename))
 
         for offer in offers:
@@ -257,6 +258,15 @@ class Job(object):
         if 'customized-source-data' in product_options:
             cmd.append('--include-customized-source-data')
 
+        if 'top-of-atmosphere' in product_options:
+            cmd.append('--include-top-of-atmosphere')
+
+        if 'brightness-temperature' in product_options:
+            cmd.append('--include-brightness-temperature')
+
+        if 'surface-reflectance' in product_options:
+            cmd.append('--include-surface-reflectance')
+
         # Add in any developer options
         if 'developer-options' in order:
             developer_options = order['developer-options']
@@ -328,6 +338,14 @@ class Job(object):
 #        docker.image = ':'.join([docker_cfg['image'], docker_cfg['tag']])
 #        docker.network = 2  # MesosPb2.ContainerInfo.DockerInfo.Network.BRIDGE
 #        docker.force_pull_image = False
+
+#        user_param = docker.parameters.add()
+#        user_param.key = 'user'
+#        user_param.value = '100:100'
+
+#        workdir_param = docker.parameters.add()
+#        workdir_param.key = 'workdir'
+#        workdir_param.value = '/home/espa/work-dir'
 
 #        container.docker.MergeFrom(docker)
 
