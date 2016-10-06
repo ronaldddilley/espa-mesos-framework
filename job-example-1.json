@@ -1,0 +1,70 @@
+{
+    "jobs": [
+        {
+            "cpus": 1,
+            "disk": 5000,
+            "docker": {
+                "image": "espa.centos.science",
+                "tag": "b2.11.4"
+            },
+            "mem": 2000,
+            "order": {
+                "customization-options": {
+                    "output-format": "gtiff"
+                },
+                "espa_api": "skip_api",
+                "input-product-id": "LE07_L1TP_029029_20160728_20160831_01_A1",
+                "input-url": "file:///home/espa/input-data/LE07/LE07_L1TP_029029_20160728_20160831_01_A1.tar.gz",
+                "order-id": "1010101",
+                "product-options": [
+                    "customized-source-data"
+                ],
+                "product-type": "landsat"
+            }
+        },
+        {
+            "cpus": 1,
+            "disk": 5000,
+            "docker": {
+                "image": "espa.centos.science",
+                "tag": "b2.11.4"
+            },
+            "mem": 2000,
+            "order": {
+                "customization-options": {
+                    "output-format": "gtiff"
+                },
+                "espa_api": "skip_api",
+                "input-product-id": "LE07_L1TP_029029_20160712_20160901_01_A1",
+                "input-url": "file:///home/espa/input-data/LE07/LE07_L1TP_029029_20160712_20160901_01_A1.tar.gz",
+                "order-id": "1010101",
+                "product-options": [
+                    "customized-source-data"
+                ],
+                "product-type": "landsat"
+            }
+        },
+        {
+            "cpus": 1,
+            "disk": 5000,
+            "docker": {
+                "image": "espa.centos.science",
+                "tag": "b2.11.4"
+            },
+            "mem": 2000,
+            "order": {
+                "customization-options": {
+                    "output-format": "gtiff"
+                },
+                "espa_api": "skip_api",
+                "input-product-id": "LE07_L1TP_029029_20130704_20160908_01_A1",
+                "input-url": "file:///home/espa/input-data/LE07/LE07_L1TP_029029_20130704_20160908_01_A1.tar.gz",
+                "order-id": "1010101",
+                "product-options": [
+                    "customized-source-data"
+                ],
+                "product-type": "landsat"
+            }
+        }
+    ]
+}
