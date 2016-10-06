@@ -1,0 +1,24 @@
+{
+    "cpus": 1,
+    "disk": 5000,
+    "docker": {
+        "image": "espa.centos.science",
+        "tag": "b2.11.4"
+    },
+    "mem": 3000,
+    "order": {
+        "customization-options": {
+            "output-format": "gtiff"
+        },
+        "espa_api": "skip_api",
+        "input-product-id": "SCENE",
+        "input-url": "file://FILE_PATH",
+        "order-id": "bridge",
+        "product-options": [
+            "top-of-atmosphere",
+            "brightness-temperature",
+            "surface-reflectance"
+        ],
+        "product-type": "landsat"
+    }
+}
