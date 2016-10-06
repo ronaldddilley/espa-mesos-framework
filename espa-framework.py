@@ -42,9 +42,9 @@ class ESPA_Scheduler(MesosScheduler):
         """Scheduler initialization
 
         Args:
-            implicitAcknowledgements <int>: ????
-            executor <ExecutorInfo>: Executor information
-            job_filename <str>: Filename to get the jobs from
+            implicitAcknowledgements <int>: Input (Mesos API)
+            executor <ExecutorInfo>: Input (Mesos API)
+            job_filename <str>: Input (filename to get the jobs from)
         """
 
         self.implicitAcknowledgements = implicitAcknowledgements
@@ -53,8 +53,7 @@ class ESPA_Scheduler(MesosScheduler):
         self.shutdownRequest = False
 
         self.tasksLaunched = 0
-        self.tasksFinished = 0
-        self.jobs = list()
+        self.job_queue = list()
 
         self.job_filename = job_filename
 
@@ -100,16 +99,16 @@ class ESPA_Scheduler(MesosScheduler):
                 self.shutdownRequest = True
                 os.unlink('shutdown_framework')
                 logger.info('Shutdown Requested')
-        elif self.tasksFinished == self.tasksLaunched:
+        elif self.tasksLaunched == 0:
             logger.info('Tasks Complete - Shutting Down Framework')
             driver.stop()
 
         # If the job queue is empty, check for more
-        if not self.jobs:
-            self.jobs.extend(get_jobs(self.job_filename))
+        if not self.job_queue:
+            self.job_queue.extend(get_jobs(self.job_filename))
 
         for offer in offers:
-            if not self.jobs or self.shutdownRequest:
+            if not self.job_queue or self.shutdownRequest:
                 driver.declineOffer(offer.id)
                 break
 
@@ -125,8 +124,10 @@ class ESPA_Scheduler(MesosScheduler):
                 elif resource.name == 'disk':
                     offerDisk += resource.scalar.value
 
-            if self.jobs[0].check_resources(offerCpus, offerMem, offerDisk):
-                job = self.jobs.pop(0)
+            if self.job_queue[0].check_resources(offerCpus,
+                                                 offerMem,
+                                                 offerDisk):
+                job = self.job_queue.pop(0)
                 task = job.make_task(offer)
                 self.tasksLaunched += 1
                 driver.launchTasks(offer.id, [task])
@@ -138,7 +139,8 @@ class ESPA_Scheduler(MesosScheduler):
             else:
                 driver.declineOffer(offer.id)
 
-        logger.info('Remaining job count {}'.format(len(self.jobs)))
+        logger.info('Queued job count {}'.format(len(self.job_queue)))
+        logger.info('Running job count {}'.format(self.tasksLaunched))
 
 
     def statusUpdate(self, driver, update):
@@ -160,7 +162,7 @@ class ESPA_Scheduler(MesosScheduler):
                 update.state == MesosPb2.TASK_ERROR or
                 update.state == MesosPb2.TASK_FAILED):
 
-            self.tasksFinished += 1
+            self.tasksLaunched -= 1
 
             # TODO TODO TODO - Call the ESPA API server to update the state
             # if update.state == MesosPb2.TASK_FINISHED:
@@ -168,9 +170,7 @@ class ESPA_Scheduler(MesosScheduler):
             # else:
             #     Set ERROR/FAILURE
 
-            if (self.shutdownRequest and
-                    (self.tasksFinished == self.tasksLaunched)):
-
+            if (self.shutdownRequest and (self.tasksLaunched == 0)):
                 logger.info('Shutdown Requested')
                 driver.stop()
 
@@ -223,17 +223,18 @@ class Job(object):
 
         # Create some shortcuts
         order = self.job_info['order']
-        docker = self.job_info['docker']
+        docker_cfg = self.job_info['docker']
         order_id = order['order-id']
         customization_options = order['customization-options']
         product_options = order['product-options']
 
         product_id = order['input-product-id'].replace('_', '-')
 
-
         # TODO TODO TODO - Get a bunch of this stuff from a configuration file
+        #       '--user', '{}:{}'.format(os.getuid(), os.getgid()),
+        # Temporary use group 501
         cmd = ['docker', 'run', '--rm',
-               '--user', '{}:{}'.format(os.getuid(), os.getgid()),
+               '--user', '{}:501'.format(os.getuid()),
                '--tty',
                '--hostname {}-cli'.format('-'.join([product_id, order_id])),
                '--name {}-cli'.format('-'.join([product_id, order_id])),
@@ -244,7 +245,7 @@ class Job(object):
                '--volume /home/dilley/.usgs:/home/espa/.usgs:ro',
                '--workdir /home/espa/work-dir']
 
-        cmd.append(':'.join([docker['image'], docker['tag']]))
+        cmd.append(':'.join([docker_cfg['image'], docker_cfg['tag']]))
 
         cmd.extend(['cli.py',
                     '--order-id', order['order-id'],
@@ -290,11 +291,55 @@ class Job(object):
         # Create some shortcuts
         order = self.job_info['order']
 
-        # Create and initialize the task object
+#        # Create the container object
+#        container = MesosPb2.ContainerInfo()
+#        container.type = 1  # MesosPb2.ContainerInfo.Type.DOCKER
+
+#        # TODO TODO TODO - Get a bunch of this stuff from a configuration file
+#        # Create container volumes
+#        work_volume = container.volumes.add()
+#        work_volume.host_path = '/data2/dilley/work-dir'
+#        work_volume.container_path = '/home/espa/work-dir'
+#        work_volume.mode = 1  # MesosPb2.Volume.Mode.RW
+
+#        output_volume = container.volumes.add()
+#        output_volume.host_path = '/data2/dilley/output-data'
+#        output_volume.container_path = '/home/espa/output-data'
+#        output_volume.mode = 1  # MesosPb2.Volume.Mode.RW
+
+#        aux_volume = container.volumes.add()
+#        aux_volume.host_path = '/usr/local/auxiliaries'
+#        aux_volume.container_path = '/usr/local/auxiliaries'
+#        aux_volume.mode = 2  # MesosPb2.Volume.Mode.RO
+
+#        input_volume = container.volumes.add()
+#        input_volume.host_path = '/data2/dilley/input-data'
+#        input_volume.container_path = '/home/espa/input-data'
+#        input_volume.mode = 2  # MesosPb2.Volume.Mode.RO
+
+#        config_volume = container.volumes.add()
+#        config_volume.host_path = '/home/dilley/.usgs'
+#        config_volume.container_path = '/home/espa/.usgs'
+#        config_volume.mode = 2  # MesosPb2.Volume.Mode.RO
+
+#        # Specify container Docker image
+#        docker_cfg = self.job_info['docker']
+#        docker = MesosPb2.ContainerInfo.DockerInfo()
+#        docker.image = ':'.join([docker_cfg['image'], docker_cfg['tag']])
+#        docker.network = 2  # MesosPb2.ContainerInfo.DockerInfo.Network.BRIDGE
+#        docker.force_pull_image = False
+
+#        container.docker.MergeFrom(docker)
+
+        # Create the task object
         task = MesosPb2.TaskInfo()
         task.task_id.value = self.build_task_id()
         task.slave_id.value = offer.slave_id.value
         task.name = self.build_task_name()
+
+#        # Add the container
+#        task.container.MergeFrom(container)
+
 
         # Specify the command line to execute the Docker container
         command = MesosPb2.CommandInfo()
@@ -371,7 +416,7 @@ def retrieve_command_line():
     return parser.parse_args()
 
 
-def setup_framework():
+def espa_framework():
     """Establish framework information
     """
 
@@ -383,7 +428,7 @@ def setup_framework():
     return framework
 
 
-def setup_executor():
+def espa_executor():
     """Establish executor information
     """
 
@@ -400,8 +445,8 @@ def main():
 
     args = retrieve_command_line()
 
-    framework = setup_framework()
-    executor = setup_executor()
+    framework = espa_framework()
+    executor = espa_executor()
 
     mesos_scheduler = ESPA_Scheduler(1, executor, args.job_filename)
     driver = MesosSchedulerDriver(mesos_scheduler, framework,

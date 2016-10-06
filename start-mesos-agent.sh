@@ -22,6 +22,7 @@ sbin_path='/home/dilley/dev-tools/sbin'
 work_dir='/data2/dilley/mesos'
 agent_log='/data2/dilley/mesos/agent.log'
 resources='cpus(*):3; mem(*):6000; disk(*):20000'
+#    --containerizers=docker
 
 sudo rm -f ${work_dir}/meta/slaves/latest
 
@@ -29,5 +30,4 @@ sudo ${sbin_path}/mesos-agent \
     --master=${master_node}:${master_port} \
     --work_dir=${work_dir} \
     --external_log_file=${agent_log} \
-    --resources=${resources} \
-    --containerizers=docker
+    --resources=${resources}
