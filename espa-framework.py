@@ -108,6 +108,8 @@ class ESPA_Scheduler(MesosScheduler):
         # TODO TODO TODO - Make the job queue size configurable
         if len(self.job_queue) < 2000:
             self.job_queue.extend(get_jobs(self.job_filename, self.docker_mode))
+            # TODO TODO TODO - Call the ESPA API server to update the state
+            #                  Do we need to set to a queued state for ESPA?
 
         for offer in offers:
             if not self.job_queue or self.shutdownRequest:
