@@ -24,9 +24,11 @@ agent_log='/data2/dilley/mesos/agent.log'
 resources='cpus(*):3; mem(*):6000; disk(*):20000'
 
 containerize=''
+docker_remove_delay=''
 if [ $1 == "docker" ]; then
     echo "Agent will use docker containerizer"
     containerize='--containerizers=docker'
+    docker_remove_delay='--docker_remove_delay=1mins'
 fi
 
 sudo rm -f ${work_dir}/meta/slaves/latest
@@ -36,4 +38,4 @@ sudo ${sbin_path}/mesos-agent \
     --work_dir=${work_dir} \
     --external_log_file=${agent_log} \
     --resources=${resources} \
-    ${containerize}
+    ${containerize} ${docker_remove_delay}
