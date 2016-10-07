@@ -24,7 +24,8 @@ agent_log='/data2/dilley/mesos/agent.log'
 resources='cpus(*):3; mem(*):6000; disk(*):20000'
 
 containerize=''
-if [ $1 eq "docker" ]; then
+if [ $1 == "docker" ]; then
+    echo "Agent will use docker containerizer"
     containerize='--containerizers=docker'
 fi
 

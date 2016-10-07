@@ -38,7 +38,7 @@ class ESPA_Scheduler(MesosScheduler):
     """Implements a Mesos framework scheduler
     """
 
-    def __init__(self, implicitAcknowledgements, executor, job_filename):
+    def __init__(self, implicitAcknowledgements, executor, args):
         """Scheduler initialization
 
         Args:
@@ -55,7 +55,8 @@ class ESPA_Scheduler(MesosScheduler):
         self.tasksLaunched = 0
         self.job_queue = list()
 
-        self.job_filename = job_filename
+        self.job_filename = args.job_filename
+        self.docker_mode = args.docker_mode
 
     def registered(self, driver, frameworkId, masterInfo):
         """The framework was registered so log it
@@ -106,7 +107,7 @@ class ESPA_Scheduler(MesosScheduler):
         # If the job queue is empty, check for more
         # TODO TODO TODO - Make the job queue size configurable
         if len(self.job_queue) < 2000:
-            self.job_queue.extend(get_jobs(self.job_filename))
+            self.job_queue.extend(get_jobs(self.job_filename, self.docker_mode))
 
         for offer in offers:
             if not self.job_queue or self.shutdownRequest:
@@ -195,12 +196,13 @@ class Job(object):
     """Stores information for a job and can create a Mesos task
     """
 
-    def __init__(self, job_info=None):
+    def __init__(self, job_info, docker_mode):
         """Initialize the job information
         """
         # TODO TODO TODO - Maybe switch to using a named tuple for job_info
 
         self.job_info = job_info
+        self.docker_mode = docker_mode
 
     def check_resources(self, cpus, mem, disk):
         # Compare the job requirements against the offered resources
@@ -224,29 +226,36 @@ class Job(object):
 
         # Create some shortcuts
         order = self.job_info['order']
-        docker_cfg = self.job_info['docker']
         order_id = order['order-id']
         customization_options = order['customization-options']
         product_options = order['product-options']
 
         product_id = order['input-product-id'].replace('_', '-')
 
-        # TODO TODO TODO - Get a bunch of this stuff from a configuration file
-        #       '--user', '{}:{}'.format(os.getuid(), os.getgid()),
-        # Temporary use group 501
-        cmd = ['docker', 'run', '--rm',
-               '--user', '{}:501'.format(os.getuid()),
-               '--tty',
-               '--hostname {}-cli'.format('-'.join([product_id, order_id])),
-               '--name {}-cli'.format('-'.join([product_id, order_id])),
-               '--volume /data2/dilley/work-dir:/home/espa/work-dir:rw',
-               '--volume /data2/dilley/output-data:/home/espa/output-data:rw',
-               '--volume /usr/local/auxiliaries:/usr/local/auxiliaries:ro',
-               '--volume /data2/dilley/input-data:/home/espa/input-data:ro',
-               '--volume /home/dilley/.usgs:/home/espa/.usgs:ro',
-               '--workdir /home/espa/work-dir']
+        cmd = list()
 
-        cmd.append(':'.join([docker_cfg['image'], docker_cfg['tag']]))
+        # TODO TODO TODO - Get a bunch of this stuff from a configuration file
+
+        if not self.docker_mode:
+            docker_cfg = self.job_info['docker']
+
+            # Temporary hardcode group 501
+            cmd.extend(['docker', 'run', '--rm',
+                        '--user', '{}:501'.format(os.getuid()),
+                        '--tty',
+                        '--hostname {}-cli'.format('-'.join([product_id, order_id])),
+                        '--name {}-cli'.format('-'.join([product_id, order_id])),
+                        '--volume /data2/dilley/work-dir:/home/espa/work-dir:rw',
+                        '--volume /data2/dilley/output-data:/home/espa/output-data:rw',
+                        '--volume /usr/local/auxiliaries:/usr/local/auxiliaries:ro',
+                        '--volume /data2/dilley/input-data:/home/espa/input-data:ro',
+                        '--volume /home/dilley/.usgs:/home/espa/.usgs:ro',
+                        '--workdir /home/espa/work-dir'])
+
+            cmd.append(':'.join([docker_cfg['image'], docker_cfg['tag']]))
+
+        else:
+            cmd.append('/entrypoint.sh')
 
         cmd.extend(['cli.py',
                     '--order-id', order['order-id'],
@@ -301,53 +310,55 @@ class Job(object):
         # Create some shortcuts
         order = self.job_info['order']
 
-#        # Create the container object
-#        container = MesosPb2.ContainerInfo()
-#        container.type = 1  # MesosPb2.ContainerInfo.Type.DOCKER
+        if self.docker_mode:
+            # Create the container object
+            container = MesosPb2.ContainerInfo()
+            container.type = 1  # MesosPb2.ContainerInfo.Type.DOCKER
 
-#        # TODO TODO TODO - Get a bunch of this stuff from a configuration file
-#        # Create container volumes
-#        work_volume = container.volumes.add()
-#        work_volume.host_path = '/data2/dilley/work-dir'
-#        work_volume.container_path = '/home/espa/work-dir'
-#        work_volume.mode = 1  # MesosPb2.Volume.Mode.RW
+            # TODO TODO TODO - Get a bunch of this stuff from a configuration file
+            # Create container volumes
+            work_volume = container.volumes.add()
+            work_volume.host_path = '/data2/dilley/work-dir'
+            work_volume.container_path = '/home/espa/work-dir'
+            work_volume.mode = 1  # MesosPb2.Volume.Mode.RW
 
-#        output_volume = container.volumes.add()
-#        output_volume.host_path = '/data2/dilley/output-data'
-#        output_volume.container_path = '/home/espa/output-data'
-#        output_volume.mode = 1  # MesosPb2.Volume.Mode.RW
+            output_volume = container.volumes.add()
+            output_volume.host_path = '/data2/dilley/output-data'
+            output_volume.container_path = '/home/espa/output-data'
+            output_volume.mode = 1  # MesosPb2.Volume.Mode.RW
 
-#        aux_volume = container.volumes.add()
-#        aux_volume.host_path = '/usr/local/auxiliaries'
-#        aux_volume.container_path = '/usr/local/auxiliaries'
-#        aux_volume.mode = 2  # MesosPb2.Volume.Mode.RO
+            aux_volume = container.volumes.add()
+            aux_volume.host_path = '/usr/local/auxiliaries'
+            aux_volume.container_path = '/usr/local/auxiliaries'
+            aux_volume.mode = 2  # MesosPb2.Volume.Mode.RO
 
-#        input_volume = container.volumes.add()
-#        input_volume.host_path = '/data2/dilley/input-data'
-#        input_volume.container_path = '/home/espa/input-data'
-#        input_volume.mode = 2  # MesosPb2.Volume.Mode.RO
+            input_volume = container.volumes.add()
+            input_volume.host_path = '/data2/dilley/input-data'
+            input_volume.container_path = '/home/espa/input-data'
+            input_volume.mode = 2  # MesosPb2.Volume.Mode.RO
 
-#        config_volume = container.volumes.add()
-#        config_volume.host_path = '/home/dilley/.usgs'
-#        config_volume.container_path = '/home/espa/.usgs'
-#        config_volume.mode = 2  # MesosPb2.Volume.Mode.RO
+            config_volume = container.volumes.add()
+            config_volume.host_path = '/home/dilley/.usgs'
+            config_volume.container_path = '/home/espa/.usgs'
+            config_volume.mode = 2  # MesosPb2.Volume.Mode.RO
 
-#        # Specify container Docker image
-#        docker_cfg = self.job_info['docker']
-#        docker = MesosPb2.ContainerInfo.DockerInfo()
-#        docker.image = ':'.join([docker_cfg['image'], docker_cfg['tag']])
-#        docker.network = 2  # MesosPb2.ContainerInfo.DockerInfo.Network.BRIDGE
-#        docker.force_pull_image = False
+            # Specify container Docker image
+            docker_cfg = self.job_info['docker']
+            docker = MesosPb2.ContainerInfo.DockerInfo()
+            docker.image = ':'.join([docker_cfg['image'], docker_cfg['tag']])
+            docker.network = 2  # MesosPb2.ContainerInfo.DockerInfo.Network.BRIDGE
+            docker.force_pull_image = False
 
-#        user_param = docker.parameters.add()
-#        user_param.key = 'user'
-#        user_param.value = '100:100'
+            # Temporary hardcode group 501
+            user_param = docker.parameters.add()
+            user_param.key = 'user'
+            user_param.value = '{}:501'.format(os.getuid())
 
-#        workdir_param = docker.parameters.add()
-#        workdir_param.key = 'workdir'
-#        workdir_param.value = '/home/espa/work-dir'
+            workdir_param = docker.parameters.add()
+            workdir_param.key = 'workdir'
+            workdir_param.value = '/home/espa/work-dir'
 
-#        container.docker.MergeFrom(docker)
+            container.docker.MergeFrom(docker)
 
         # Create the task object
         task = MesosPb2.TaskInfo()
@@ -355,8 +366,9 @@ class Job(object):
         task.slave_id.value = offer.slave_id.value
         task.name = self.build_task_name()
 
-#        # Add the container
-#        task.container.MergeFrom(container)
+        if self.docker_mode:
+            # Add the container
+            task.container.MergeFrom(container)
 
 
         # Specify the command line to execute the Docker container
@@ -389,7 +401,7 @@ class Job(object):
         return task
 
 
-def get_jobs(job_filename):
+def get_jobs(job_filename, docker_mode):
     """Reads jobs from a known job file location
     """
 
@@ -403,7 +415,7 @@ def get_jobs(job_filename):
         del data
 
         for job in job_dict['jobs']:
-            jobs.append(Job(job))
+            jobs.append(Job(job, docker_mode))
 
         os.unlink(job_filename)
 
@@ -430,6 +442,13 @@ def retrieve_command_line():
                         required=False,
                         metavar='TEXT',
                         help='JSON job file to use')
+
+    parser.add_argument('--docker-mode',
+                        action='store_true',
+                        dest='docker_mode',
+                        required=False,
+                        default=False,
+                        help='Temporary option to support old an new')
 
     return parser.parse_args()
 
@@ -466,7 +485,7 @@ def main():
     framework = espa_framework()
     executor = espa_executor()
 
-    mesos_scheduler = ESPA_Scheduler(1, executor, args.job_filename)
+    mesos_scheduler = ESPA_Scheduler(1, executor, args)
     driver = MesosSchedulerDriver(mesos_scheduler, framework,
                                   args.master_node)
 
