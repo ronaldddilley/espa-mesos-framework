@@ -10,16 +10,15 @@
             "mem": 3000,
             "order": {
                 "customization-options": {
-                    "output-format": "gtiff"
+                    "output-format": "envi"
                 },
                 "espa_api": "skip_api",
                 "input-product-id": "LT05_L1TP_045028_20000403_20161005_01_A1",
-                "input-url": "file:///home/espa/input-data/tm/LT05_L1TP_045028_20000403_20161005_01_A1.tar.gz",
-                "order-id": "bridge",
+                "input-url": "file:///home/espa/input-data/bridge/LT05_L1TP_045028_20000403_20161005_01_A1.tar.gz",
+                "order-id": "docker-mode",
                 "product-options": [
                     "top-of-atmosphere",
-                    "brightness-temperature",
-                    "surface-reflectance"
+                    "brightness-temperature"
                 ],
                 "product-type": "landsat"
             }
