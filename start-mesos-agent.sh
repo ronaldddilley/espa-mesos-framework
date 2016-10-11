@@ -16,6 +16,11 @@
 
 set -e
 
+use_docker_containerizer='yes'
+if [ ${1} ]; then
+    use_docker_containerizer=${1}
+fi
+
 master_node=`hostname --ip-address`
 master_port=5050
 sbin_path='/home/dilley/dev-tools/sbin'
@@ -25,8 +30,8 @@ resources='cpus(*):3; mem(*):6000; disk(*):20000'
 
 containerize=''
 docker_remove_delay=''
-if [ $1 == "docker" ]; then
-    echo "Agent will use docker containerizer"
+if [ ${use_docker_containerizer} == 'yes' ]; then
+    echo '*** Agent will use docker containerizer ***'
     containerize='--containerizers=docker'
     docker_remove_delay='--docker_remove_delay=1mins'
 fi
