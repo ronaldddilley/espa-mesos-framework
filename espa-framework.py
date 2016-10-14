@@ -5,7 +5,7 @@ File:
     espa-framework.py
 
 Purpose:
-    Implements the Mesos Framework for processing data through ESPA.
+    Implements a Mesos Framework for processing data through ESPA.
 
 License:
     NASA Open Source Agreement 1.3
@@ -15,7 +15,10 @@ License:
 import os
 import sys
 import json
+import uuid
+import copy
 import logging
+import requests
 from argparse import ArgumentParser
 
 
@@ -34,6 +37,60 @@ logging.basicConfig(format=('%(asctime)s.%(msecs)03d %(process)d'
                     stream=sys.stdout)
 
 
+def get_mesos_http_api_content(url):
+    """Returns the json content from the specified url as a dictionary
+    """
+
+    session = requests.Session()
+
+    session.mount('http://', requests.adapters.HTTPAdapter(max_retries=3))
+    session.mount('https://', requests.adapters.HTTPAdapter(max_retries=3))
+
+    req = session.get(url=url)
+    if not req.ok:
+        logger = logging.getLogger(__name__)
+        logger.error('HTTP Content Retrieval - Failed')
+        req.reaise_for_status()
+
+    data = json.loads(req.content)
+
+    del req
+    del session
+
+    return data
+
+
+def get_agent_hostname(master_node, master_port, agent_id):
+
+    data = get_mesos_http_api_content(url='http://{}:{}/slaves'
+                                      .format(master_node, master_port))
+
+    hostname = None
+
+    for agent in data['slaves']:
+        if agent['id'] == agent_id:
+            hostname = agent['hostname']
+
+    return hostname
+
+
+def get_agent_id(master_node, master_port, framework_id, task_id):
+
+    data = get_mesos_http_api_content(url='http://{}:{}/tasks'
+                                      .format(master_node, master_port))
+
+    agent_id = None
+
+    for task in data['tasks']:
+        if (task['framework_id'] == framework_id and
+                task['id'] == task_id):
+
+            agent_id = task['slave_id']
+            break
+
+    return agent_id
+
+
 class ESPA_Scheduler(MesosScheduler):
     """Implements a Mesos framework scheduler
     """
@@ -44,7 +101,7 @@ class ESPA_Scheduler(MesosScheduler):
         Args:
             implicitAcknowledgements <int>: Input (Mesos API)
             executor <ExecutorInfo>: Input (Mesos API)
-            job_filename <str>: Input (filename to get the jobs from)
+            args <args>: Input (Command line arguments)
         """
 
         self.implicitAcknowledgements = implicitAcknowledgements
@@ -54,9 +111,13 @@ class ESPA_Scheduler(MesosScheduler):
 
         self.tasksLaunched = 0
         self.job_queue = list()
+        self.tasks = dict()
 
         self.job_filename = args.job_filename
-        self.docker_mode = args.docker_mode
+        self.framework_id = None
+        self.master_node = None
+        self.master_port = None
+        self.verbose = args.verbose
 
     def registered(self, driver, frameworkId, masterInfo):
         """The framework was registered so log it
@@ -68,11 +129,17 @@ class ESPA_Scheduler(MesosScheduler):
         """
 
         logger = logging.getLogger(__name__)
-        logger.info('Registered with framework ID {} on {}'
-                    .format(frameworkId.value, masterInfo.hostname))
+        logger.info('Registered with framework ID {} on {}:{}'
+                    .format(frameworkId.value, masterInfo.hostname,
+                            masterInfo.port))
+
+        # Update state
+        self.framework_id = frameworkId.value
+        self.master_node = masterInfo.hostname
+        self.master_port = masterInfo.port
 
     def reregistered(self, driver, masterInfo):
-        """The framework was registered so log it
+        """The framework was re-registered so log it
 
         Args:
             driver <MesosSchedulerDriver>: Input (Mesos API)
@@ -82,6 +149,9 @@ class ESPA_Scheduler(MesosScheduler):
         logger = logging.getLogger(__name__)
         logger.info('Re-Registered to master on {}'
                     .format(masterInfo.getHostname()))
+
+        # Update state
+        self.master_node = masterInfo.hostname
 
     def resourceOffers(self, driver, offers):
         """Evaluate resource offerings and launch tasks or decline the
@@ -107,7 +177,7 @@ class ESPA_Scheduler(MesosScheduler):
         # If the job queue is empty, check for more
         # TODO TODO TODO - Make the job queue size configurable
         if len(self.job_queue) < 2000:
-            self.job_queue.extend(get_jobs(self.job_filename, self.docker_mode))
+            self.job_queue.extend(get_jobs(self.job_filename))
             # TODO TODO TODO - Call the ESPA API server to update the state
             #                  Do we need to set to a queued state for ESPA?
 
@@ -143,8 +213,9 @@ class ESPA_Scheduler(MesosScheduler):
             else:
                 driver.declineOffer(offer.id)
 
-        logger.info('Queued job count {}'.format(len(self.job_queue)))
-        logger.info('Running job count {}'.format(self.tasksLaunched))
+        if self.verbose:
+            logger.info('Queued job count {}'.format(len(self.job_queue)))
+            logger.info('Running job count {}'.format(self.tasksLaunched))
 
 
     def statusUpdate(self, driver, update):
@@ -155,21 +226,85 @@ class ESPA_Scheduler(MesosScheduler):
             update <?>: Input (Mesos API)
         """
 
+        task_id = update.task_id.value
+        state = update.state
+
         logger = logging.getLogger(__name__)
         logger.info('Task {} is in state {}'
-                    .format(update.task_id.value,
-                            MesosPb2.TaskState.Name(update.state)))
+                    .format(task_id, MesosPb2.TaskState.Name(state)))
 
-        if (update.state == MesosPb2.TASK_FINISHED or
-                update.state == MesosPb2.TASK_LOST or
-                update.state == MesosPb2.TASK_KILLED or
-                update.state == MesosPb2.TASK_ERROR or
-                update.state == MesosPb2.TASK_FAILED):
+#        if update.HasField('container_status'):
+#            logger.info('Field [container_status] {}'.format(update.container_status))
+#        if update.HasField('data'):
+#            logger.info('Field [data] {}'.format(update.data))
+#        if update.HasField('executor_id'):
+#            logger.info('Field [executor_id] {}'.format(update.executor_id))
+#        if update.HasField('healthy'):
+#            logger.info('Field [healthy] {}'.format(update.healthy))
+#        if update.HasField('labels'):
+#            logger.info('Field [labels] {}'.format(update.labels))
+        if update.HasField('message'):
+            logger.info('Field [message] {}'.format(update.message))
+#        if update.HasField('reason'):
+#            logger.info('Field [reason] {}'.format(update.reason))
+#        if update.HasField('slave_id'):
+#            logger.info('Field [slave_id] {}'.format(update.slave_id))
+#        if update.HasField('source'):
+#            logger.info('Field [source] {}'.format(update.source))
+#        if update.HasField('state'):
+#            logger.info('Field [state] {}'.format(update.state))
+#        if update.HasField('task_id'):
+#            logger.info('Field [task_id] {}'.format(update.task_id))
+#        if update.HasField('timestamp'):
+#            logger.info('Field [timestamp] {}'.format(update.timestamp))
+#        if update.HasField('uuid'):
+#            logger.info('Field [uuid] {}'
+#                        .format(str(uuid.UUID(bytes=update.uuid))))
+
+        # Gather the container information for the running task, so it can be
+        # used later during the finished or failed statuses
+        if state == MesosPb2.TASK_RUNNING:
+            self.tasks[task_id] = json.loads('{{"data": {} }}'
+                                             .format(update.data))
+
+            logger.info('master_node {}'.format(self.master_node))
+            agent_id = get_agent_id(self.master_node, self.master_port,
+                                    self.framework_id, task_id)
+            logger.info('agent_id {}'.format(agent_id))
+
+        #for field in update.ListFields():
+        #    logger.info('Field {}'.format(field))
+
+        # This is an example of the task name built earlier
+        # Which can be used to specify to the database what to update
+        ### ESPA-docker-mode-LT05_L1TP_045028_20000403_20161005_01_A1
+
+        if (state == MesosPb2.TASK_FINISHED or
+                state == MesosPb2.TASK_LOST or
+                state == MesosPb2.TASK_KILLED or
+                state == MesosPb2.TASK_ERROR or
+                state == MesosPb2.TASK_FAILED):
+
+            for mount in self.tasks[task_id]['data'][0]['Mounts']:
+                if mount['Destination'] == '/mnt/mesos/sandbox':
+                    logger.info('Logfile Location = {}'
+                                .format(mount['Source']))
+            #logger.info('Data {}'
+            #            .format(json.dumps(self.tasks[task_id], indent=4)))
 
             self.tasksLaunched -= 1
+            del self.tasks[task_id]
+
+            agent_id = get_agent_id(self.master_node, self.master_port,
+                                    self.framework_id, task_id)
+            logger.info('agent_id {}'.format(agent_id))
+            agent_hostname = get_agent_hostname(self.master_node,
+                                                self.master_port, agent_id)
+            logger.info('agent_hostname {}'.format(agent_hostname))
+
 
             # TODO TODO TODO - Call the ESPA API server to update the state
-            # if update.state == MesosPb2.TASK_FINISHED:
+            # if state == MesosPb2.TASK_FINISHED:
             #     Set SUCCESS
             # else:
             #     Set ERROR/FAILURE
@@ -198,13 +333,12 @@ class Job(object):
     """Stores information for a job and can create a Mesos task
     """
 
-    def __init__(self, job_info, docker_mode):
+    def __init__(self, job_info):
         """Initialize the job information
         """
         # TODO TODO TODO - Maybe switch to using a named tuple for job_info
 
         self.job_info = job_info
-        self.docker_mode = docker_mode
 
     def check_resources(self, cpus, mem, disk):
         # Compare the job requirements against the offered resources
@@ -238,27 +372,9 @@ class Job(object):
 
         # TODO TODO TODO - Get a bunch of this stuff from a configuration file
 
-        if not self.docker_mode:
-            docker_cfg = self.job_info['docker']
-
-            # Temporary hardcode group 501
-            cmd.extend(['docker', 'run', '--rm',
-                        '--user', '{}:501'.format(os.getuid()),
-                        '--tty',
-                        '--hostname {}-cli'.format('-'.join([product_id, order_id])),
-                        '--name {}-cli'.format('-'.join([product_id, order_id])),
-                        '--volume /data2/dilley/work-dir:/home/espa/work-dir:rw',
-                        '--volume /data2/dilley/output-data:/home/espa/output-data:rw',
-                        '--volume /usr/local/auxiliaries:/usr/local/auxiliaries:ro',
-                        '--volume /data2/dilley/input-data:/home/espa/input-data:ro',
-                        '--volume /home/dilley/.usgs:/home/espa/.usgs:ro',
-                        '--workdir /home/espa/work-dir'])
-
-            cmd.append(':'.join([docker_cfg['image'], docker_cfg['tag']]))
-
-        else:
-            cmd.append('/entrypoint.sh')
-
+        # Must specify the entry point, because we are using the Docker
+        # containerizer mode of operation within Mesos
+        cmd.append('/entrypoint.sh')
         cmd.extend(['cli.py',
                     '--order-id', order['order-id'],
                     '--input-product-id', order['input-product-id'],
@@ -312,55 +428,54 @@ class Job(object):
         # Create some shortcuts
         order = self.job_info['order']
 
-        if self.docker_mode:
-            # Create the container object
-            container = MesosPb2.ContainerInfo()
-            container.type = 1  # MesosPb2.ContainerInfo.Type.DOCKER
+        # Create the container object
+        container = MesosPb2.ContainerInfo()
+        container.type = 1  # MesosPb2.ContainerInfo.Type.DOCKER
 
-            # TODO TODO TODO - Get a bunch of this stuff from a configuration file
-            # Create container volumes
-            work_volume = container.volumes.add()
-            work_volume.host_path = '/data2/dilley/work-dir'
-            work_volume.container_path = '/home/espa/work-dir'
-            work_volume.mode = 1  # MesosPb2.Volume.Mode.RW
+        # TODO TODO TODO - Get a bunch of this stuff from a configuration file
+        # Create container volumes
+        work_volume = container.volumes.add()
+        work_volume.host_path = '/data2/dilley/work-dir'
+        work_volume.container_path = '/home/espa/work-dir'
+        work_volume.mode = 1  # MesosPb2.Volume.Mode.RW
 
-            output_volume = container.volumes.add()
-            output_volume.host_path = '/data2/dilley/output-data'
-            output_volume.container_path = '/home/espa/output-data'
-            output_volume.mode = 1  # MesosPb2.Volume.Mode.RW
+        output_volume = container.volumes.add()
+        output_volume.host_path = '/data2/dilley/output-data'
+        output_volume.container_path = '/home/espa/output-data'
+        output_volume.mode = 1  # MesosPb2.Volume.Mode.RW
 
-            aux_volume = container.volumes.add()
-            aux_volume.host_path = '/usr/local/auxiliaries'
-            aux_volume.container_path = '/usr/local/auxiliaries'
-            aux_volume.mode = 2  # MesosPb2.Volume.Mode.RO
+        aux_volume = container.volumes.add()
+        aux_volume.host_path = '/usr/local/auxiliaries'
+        aux_volume.container_path = '/usr/local/auxiliaries'
+        aux_volume.mode = 2  # MesosPb2.Volume.Mode.RO
 
-            input_volume = container.volumes.add()
-            input_volume.host_path = '/data2/dilley/input-data'
-            input_volume.container_path = '/home/espa/input-data'
-            input_volume.mode = 2  # MesosPb2.Volume.Mode.RO
+        input_volume = container.volumes.add()
+        input_volume.host_path = '/data2/dilley/input-data'
+        input_volume.container_path = '/home/espa/input-data'
+        input_volume.mode = 2  # MesosPb2.Volume.Mode.RO
 
-            config_volume = container.volumes.add()
-            config_volume.host_path = '/home/dilley/.usgs'
-            config_volume.container_path = '/home/espa/.usgs'
-            config_volume.mode = 2  # MesosPb2.Volume.Mode.RO
+        config_volume = container.volumes.add()
+        config_volume.host_path = '/home/dilley/.usgs'
+        config_volume.container_path = '/home/espa/.usgs'
+        config_volume.mode = 2  # MesosPb2.Volume.Mode.RO
 
-            # Specify container Docker image
-            docker_cfg = self.job_info['docker']
-            docker = MesosPb2.ContainerInfo.DockerInfo()
-            docker.image = ':'.join([docker_cfg['image'], docker_cfg['tag']])
-            docker.network = 2  # MesosPb2.ContainerInfo.DockerInfo.Network.BRIDGE
-            docker.force_pull_image = False
+        # Specify container Docker image
+        docker_cfg = self.job_info['docker']
+        docker = MesosPb2.ContainerInfo.DockerInfo()
+        docker.image = ':'.join([docker_cfg['image'], docker_cfg['tag']])
+        docker.network = 2  # MesosPb2.ContainerInfo.DockerInfo.Network.BRIDGE
+        docker.force_pull_image = False
 
-            # Temporary hardcode group 501
-            user_param = docker.parameters.add()
-            user_param.key = 'user'
-            user_param.value = '{}:501'.format(os.getuid())
+        # Temporary hardcode group 501
+        user_param = docker.parameters.add()
+        user_param.key = 'user'
+        user_param.value = '{}:501'.format(os.getuid())
 
-            workdir_param = docker.parameters.add()
-            workdir_param.key = 'workdir'
-            workdir_param.value = '/home/espa/work-dir'
+        workdir_param = docker.parameters.add()
+        workdir_param.key = 'workdir'
+        workdir_param.value = '/home/espa/work-dir'
 
-            container.docker.MergeFrom(docker)
+        container.docker.MergeFrom(docker)
 
         # Create the task object
         task = MesosPb2.TaskInfo()
@@ -368,10 +483,8 @@ class Job(object):
         task.slave_id.value = offer.slave_id.value
         task.name = self.build_task_name()
 
-        if self.docker_mode:
-            # Add the container
-            task.container.MergeFrom(container)
-
+        # Add the container
+        task.container.MergeFrom(container)
 
         # Specify the command line to execute the Docker container
         command = MesosPb2.CommandInfo()
@@ -403,7 +516,7 @@ class Job(object):
         return task
 
 
-def get_jobs(job_filename, docker_mode):
+def get_jobs(job_filename):
     """Reads jobs from a known job file location
     """
 
@@ -417,7 +530,7 @@ def get_jobs(job_filename, docker_mode):
         del data
 
         for job in job_dict['jobs']:
-            jobs.append(Job(job, docker_mode))
+            jobs.append(Job(job))
 
         os.unlink(job_filename)
 
@@ -445,12 +558,12 @@ def retrieve_command_line():
                         metavar='TEXT',
                         help='JSON job file to use')
 
-    parser.add_argument('--docker-mode',
+    parser.add_argument('--verbose',
                         action='store_true',
-                        dest='docker_mode',
+                        dest='verbose',
                         required=False,
                         default=False,
-                        help='Temporary option to support old an new')
+                        help='Log verbose messages')
 
     return parser.parse_args()
 
@@ -481,6 +594,9 @@ def espa_executor():
 def main():
     """Main processing routine for the application
     """
+
+    # Disable annoying INFO messages from the requests module
+    logging.getLogger("requests").setLevel(logging.WARNING)
 
     args = retrieve_command_line()
 
