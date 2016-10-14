@@ -11,22 +11,18 @@
 #     NASA Open Source Agreement 1.3
 #
 # Notes:
-#     Assumes the master is running on the same system.
+#     Assumes everything is running on the same system.
 #-----------------------------------------------------------------------------
 
 set -e
 
 use_docker_containerizer='yes'
-if [ ${1} ]; then
-    use_docker_containerizer=${1}
-fi
-
-master_node=`hostname --ip-address`
-master_port=5050
+port=${1}
 sbin_path='/home/dilley/dev-tools/sbin'
-work_dir='/data2/dilley/mesos'
-agent_log='/data2/dilley/mesos/agent.log'
-resources='cpus(*):3; mem(*):6000; disk(*):20000'
+work_dir='/data2/dilley/mesos/'${port}
+agent_log='/data2/dilley/mesos/agent-'${port}'.log'
+resources='cpus:1;mem:2000;disk:10000'
+zookeeper='zk://localhost:2181,localhost:2182,localhost:2183/mesos'
 
 containerize=''
 docker_remove_delay=''
@@ -38,9 +34,11 @@ fi
 
 sudo rm -f ${work_dir}/meta/slaves/latest
 
-sudo ${sbin_path}/mesos-agent \
-    --master=${master_node}:${master_port} \
+sudo nohup ${sbin_path}/mesos-agent \
+    --master=${zookeeper} \
+    --port=${port} \
     --work_dir=${work_dir} \
     --external_log_file=${agent_log} \
     --resources=${resources} \
-    ${containerize} ${docker_remove_delay}
+    ${containerize} ${docker_remove_delay} \
+    </dev/null >/dev/null 2>&1 &
