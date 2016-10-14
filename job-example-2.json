@@ -2,12 +2,12 @@
     "jobs": [
         {
             "cpus": 1,
-            "disk": 5000,
+            "disk": 3999,
             "docker": {
                 "image": "espa.centos.science",
                 "tag": "b2.11.4"
             },
-            "mem": 3000,
+            "mem": 1999,
             "order": {
                 "customization-options": {
                     "output-format": "envi"
