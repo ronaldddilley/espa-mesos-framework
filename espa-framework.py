@@ -61,6 +61,16 @@ def get_mesos_http_api_content(url):
 
 
 def get_agent_hostname(master_node, master_port, agent_id):
+    """Retrieves the hostname for the specified Agent ID
+
+    Args:
+        master_node <str>: Master node IP address
+        master_port <str>: Master node port
+        agent_id <str>: Agent ID to ge the hostname for
+
+    Returns:
+        <str>: Hostname for the Agent
+    """
 
     data = get_mesos_http_api_content(url='http://{}:{}/slaves'
                                       .format(master_node, master_port))
@@ -75,6 +85,17 @@ def get_agent_hostname(master_node, master_port, agent_id):
 
 
 def get_agent_id(master_node, master_port, framework_id, task_id):
+    """Retrieves the Agent ID information for the specified Task ID
+
+    Args:
+        master_node <str>: Master node IP address
+        master_port <str>: Master node port
+        framework_id <str>: Framework ID for the Task ID
+        task_id <str>: Task ID we are looking for
+
+    Returns:
+        <str>: Agent ID
+    """
 
     data = get_mesos_http_api_content(url='http://{}:{}/tasks'
                                       .format(master_node, master_port))
@@ -174,9 +195,9 @@ class ESPA_Scheduler(MesosScheduler):
             logger.info('Tasks Complete - Shutting Down Framework')
             driver.stop()
 
-        # If the job queue is empty, check for more
+        # If not enough queued jobs, check for more
         # TODO TODO TODO - Make the job queue size configurable
-        if len(self.job_queue) < 2000:
+        if len(self.job_queue) < 50:
             self.job_queue.extend(get_jobs(self.job_filename))
             # TODO TODO TODO - Call the ESPA API server to update the state
             #                  Do we need to set to a queued state for ESPA?
@@ -198,20 +219,29 @@ class ESPA_Scheduler(MesosScheduler):
                 elif resource.name == 'disk':
                     offerDisk += resource.scalar.value
 
-            if self.job_queue[0].check_resources(offerCpus,
-                                                 offerMem,
-                                                 offerDisk):
+            tasks = list()
+            while (len(self.job_queue) > 0 and
+                   self.job_queue[0].check_resources(offerCpus,
+                                                     offerMem,
+                                                     offerDisk)):
                 job = self.job_queue.pop(0)
-                task = job.make_task(offer)
-                self.tasksLaunched += 1
-                driver.launchTasks(offer.id, [task])
-                job.submitted = True
+                tasks.append(job.make_task(offer))
 
-                # TODO TODO TODO - Call the ESPA API server to update the state
+                offerCpus -= job.job_info['cpus']
+                offerMem -= job.job_info['mem']
+                offerDisk -= job.job_info['disk']
+
+                # TODO TODO TODO - Call the ESPA API server to update the
+                #                  state
                 #     Set PROCESSING
 
+            if len(tasks) > 0:
+                driver.launchTasks(offer.id, tasks)
+                self.tasksLaunched += len(tasks)
             else:
                 driver.declineOffer(offer.id)
+
+            del tasks
 
         if self.verbose:
             logger.info('Queued job count {}'.format(len(self.job_queue)))
@@ -356,6 +386,9 @@ class Job(object):
         logger = logging.getLogger(__name__)
 
         # TODO TODO TODO - Somewhere perform order validation
+        # Maybe validation isn't needed, because the json format is our API and
+        # some code somewhere is writing it and validated through testing
+        # so developers can be the only ones causing errors.
         # TODO TODO TODO - Somewhere perform order validation
         # TODO TODO TODO - Somewhere perform order validation
         # TODO TODO TODO - Somewhere perform order validation
@@ -489,6 +522,9 @@ class Job(object):
         # Specify the command line to execute the Docker container
         command = MesosPb2.CommandInfo()
         command.value = self.build_command_line()
+
+        # Add the docker uri for logging into the remote repository
+        command.uris.add().value = '/home/dilley/dockercfg.tar.gz'
 
         '''
         The MergeFrom allows to create an object then to use this object
