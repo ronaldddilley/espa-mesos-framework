@@ -16,13 +16,14 @@
 
 set -e
 
-port=${1}
-cluster_name='Warlock'
+cluster_name=${1}
+port=${2}
+zookeeper=${3}
+
 master_node=`hostname --ip-address`
 sbin_path='/home/dilley/dev-tools/sbin'
 work_dir='/data2/dilley/mesos/'${port}
 master_log='/data2/dilley/mesos/master-'${port}'.log'
-zookeeper='zk://localhost:2181,localhost:2182,localhost:2183/mesos'
 
 nohup ${sbin_path}/mesos-master \
     --port=${port} \

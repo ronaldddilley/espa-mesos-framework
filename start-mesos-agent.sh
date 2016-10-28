@@ -18,11 +18,11 @@ set -e
 
 use_docker_containerizer='yes'
 port=${1}
+resources=${2}
+zookeeper=${3}
 sbin_path='/home/dilley/dev-tools/sbin'
 work_dir='/data2/dilley/mesos/'${port}
 agent_log='/data2/dilley/mesos/agent-'${port}'.log'
-resources='cpus:1;mem:2000;disk:10000'
-zookeeper='zk://localhost:2181,localhost:2182,localhost:2183/mesos'
 
 containerize=''
 docker_remove_delay=''
