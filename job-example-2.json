@@ -4,7 +4,7 @@
             "cpus": 1,
             "disk": 3999,
             "docker": {
-                "image": "espa.centos.science",
+                "image": "losrlcmp02.cr.usgs.gov:5000/espa.centos.science",
                 "tag": "b2.11.4"
             },
             "mem": 1999,
@@ -14,11 +14,12 @@
                 },
                 "espa_api": "skip_api",
                 "input-product-id": "LT05_L1TP_045028_20000403_20161005_01_A1",
-                "input-url": "file:///home/espa/input-data/bridge/LT05_L1TP_045028_20000403_20161005_01_A1.tar.gz",
-                "order-id": "docker-mode",
+                "input-url": "file:///home/espa/input-data/bridge-st-gen-scenes/LT05_L1TP_045028_20000403_20161005_01_A1.tar.gz",
+                "order-id": "mesos",
                 "product-options": [
                     "top-of-atmosphere",
-                    "brightness-temperature"
+                    "brightness-temperature",
+                    "surface-reflectance"
                 ],
                 "product-type": "landsat"
             }
