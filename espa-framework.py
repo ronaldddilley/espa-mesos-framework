@@ -415,6 +415,9 @@ class Job(object):
                     '--output-format', customization_options['output-format'],
                     '--input-url', order['input-url']])
 
+        if order['bridge-mode']:
+            cmd.append('--bridge-mode')
+
         if 'customized-source-data' in product_options:
             cmd.append('--include-customized-source-data')
 
