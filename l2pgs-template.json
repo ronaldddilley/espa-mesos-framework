@@ -2,18 +2,20 @@
     "cpus": 1,
     "disk": 5000,
     "docker": {
-        "image": "espa.centos.science",
-        "tag": "b2.11.4"
+        "image": "espa/science",
+        "tag": "2.13.0"
     },
     "mem": 3000,
     "order": {
+        "bridge-mode": true,
         "customization-options": {
             "output-format": "gtiff"
         },
+        "developer-options": [],
         "espa_api": "skip_api",
         "input-product-id": "SCENE",
         "input-url": "file://FILE_PATH",
-        "order-id": "bridge",
+        "order-id": "l2pgs",
         "product-options": [
             "top-of-atmosphere",
             "brightness-temperature",
