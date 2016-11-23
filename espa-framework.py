@@ -430,6 +430,39 @@ class Job(object):
         if 'surface-reflectance' in product_options:
             cmd.append('--include-surface-reflectance')
 
+        if 'cfmask' in product_options:
+            cmd.append('--include-cfmask')
+
+        if 'sr-evi' in product_options:
+            cmd.append('--include-sr-evi')
+
+        if 'sr-msavi' in product_options:
+            cmd.append('--include-sr-msavi')
+
+        if 'sr-nbr' in product_options:
+            cmd.append('--include-sr-nbr')
+
+        if 'sr-nbr2' in product_options:
+            cmd.append('--include-sr-nbr2')
+
+        if 'sr-ndmi' in product_options:
+            cmd.append('--include-sr-ndmi')
+
+        if 'sr-ndvi' in product_options:
+            cmd.append('--include-sr-ndvi')
+
+        if 'sr-savi' in product_options:
+            cmd.append('--include-sr-savi')
+
+        if 'surface-water-extent' in product_options:
+            cmd.append('--include-surface-water-extent')
+
+        if 'statistics' in product_options:
+            cmd.append('--include-statistics')
+
+        if 'cfmask' in product_options:
+            cmd.append('--include-cfmask')
+
         # Add in any developer options
         if 'developer-options' in order:
             developer_options = order['developer-options']
