@@ -463,6 +463,14 @@ class Job(object):
         if 'cfmask' in product_options:
             cmd.append('--include-cfmask')
 
+        # TODO TODO TODO - Need formal validation of all input parameters
+        if 'pixel-size' in customization_options:
+            cmd.append('--pixel-size {}'
+                       .format(customization_options['pixel-size']))
+        if 'pixel-size-units' in customization_options:
+            cmd.append('--pixel-size-units {}'
+                       .format(customization_options['pixel-size-units']))
+
         # Add in any developer options
         if 'developer-options' in order:
             developer_options = order['developer-options']
