@@ -185,7 +185,7 @@ class ESPA_Scheduler(MesosScheduler):
 
         logger = logging.getLogger(__name__)
 
-        # Check whether a shoutdown request has been issued
+        # Check whether a shutdown request has been issued
         if not self.shutdownRequest:
             if os.path.isfile('shutdown_framework'):
                 self.shutdownRequest = True
@@ -459,9 +459,6 @@ class Job(object):
 
         if 'statistics' in product_options:
             cmd.append('--include-statistics')
-
-        if 'cfmask' in product_options:
-            cmd.append('--include-cfmask')
 
         # TODO TODO TODO - Need formal validation of all input parameters
         if 'pixel-size' in customization_options:
