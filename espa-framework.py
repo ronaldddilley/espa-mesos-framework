@@ -27,6 +27,9 @@ from mesos.interface import mesos_pb2 as MesosPb2
 from mesos.native import MesosSchedulerDriver
 
 
+import config_utils as config
+
+
 # Setup the default logger format and level.  Log to STDOUT.
 logging.basicConfig(format=('%(asctime)s.%(msecs)03d %(process)d'
                             ' %(levelname)-8s'
@@ -187,9 +190,9 @@ class ESPA_Scheduler(MesosScheduler):
 
         # Check whether a shutdown request has been issued
         if not self.shutdownRequest:
-            if os.path.isfile('shutdown_framework'):
+            if os.path.isfile('shutdown-framework'):
                 self.shutdownRequest = True
-                os.unlink('shutdown_framework')
+                os.unlink('shutdown-framework')
                 logger.info('Shutdown Requested')
         elif self.tasksLaunched == 0:
             logger.info('Tasks Complete - Shutting Down Framework')
@@ -430,6 +433,9 @@ class Job(object):
         if 'surface-reflectance' in product_options:
             cmd.append('--include-surface-reflectance')
 
+        if 'land-surface-temperature' in product_options:
+            cmd.append('--include-land-surface-temperature')
+
         if 'cfmask' in product_options:
             cmd.append('--include-cfmask')
 
@@ -645,14 +651,15 @@ def retrieve_command_line():
     return parser.parse_args()
 
 
-def espa_framework():
+def espa_framework(cfg):
     """Establish framework information
     """
 
     framework = MesosPb2.FrameworkInfo()
     framework.user = ''
     framework.name = 'ESPA Framework'
-    framework.principal = 'espa-mesos-framework'
+    framework.principal = cfg.principal
+    framework.role = cfg.role
 
     return framework
 
@@ -668,6 +675,21 @@ def espa_executor():
     return executor
 
 
+def espa_credentials(cfg):
+    """Establish credential information
+    """
+
+    credentials = MesosPb2.Credential()
+    credentials.principal = cfg.principal
+    credentials.secret = cfg.secret
+
+
+    return credentials
+
+
+FRAMEWORK_CFG_FILENAME = 'framework.conf'
+
+
 def main():
     """Main processing routine for the application
     """
@@ -676,13 +698,18 @@ def main():
     logging.getLogger("requests").setLevel(logging.WARNING)
 
     args = retrieve_command_line()
+    fw_cfg = config.read_fw_configuration()
 
-    framework = espa_framework()
+    framework = espa_framework(fw_cfg)
     executor = espa_executor()
+    credentials = espa_credentials(fw_cfg)
 
-    mesos_scheduler = ESPA_Scheduler(1, executor, args)
+    implicitAcknowledgements = 1
+
+    mesos_scheduler = ESPA_Scheduler(implicitAcknowledgements, executor, args)
     driver = MesosSchedulerDriver(mesos_scheduler, framework,
-                                  args.master_node)
+                                  args.master_node, implicitAcknowledgements,
+                                  credentials)
 
     status = 0
     if driver.run() != MesosPb2.DRIVER_STOPPED:
