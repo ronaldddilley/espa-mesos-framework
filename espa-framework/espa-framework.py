@@ -514,11 +514,6 @@ class Job(object):
 
         # TODO TODO TODO - Get a bunch of this stuff from a configuration file
         # Create container volumes
-        work_volume = container.volumes.add()
-        work_volume.host_path = '/data2/dilley/work-dir'
-        work_volume.container_path = '/home/espa/work-dir'
-        work_volume.mode = 1  # MesosPb2.Volume.Mode.RW
-
         output_volume = container.volumes.add()
         output_volume.host_path = '/data2/dilley/output-data'
         output_volume.container_path = '/home/espa/output-data'
@@ -551,9 +546,10 @@ class Job(object):
         user_param.key = 'user'
         user_param.value = '{}:501'.format(os.getuid())
 
+        # ESPA writes the log files to this directory
         workdir_param = docker.parameters.add()
         workdir_param.key = 'workdir'
-        workdir_param.value = '/home/espa/work-dir'
+        workdir_param.value = '/mnt/mesos/sandbox'
 
         container.docker.MergeFrom(docker)
 
@@ -569,6 +565,7 @@ class Job(object):
         # Specify the command line to execute the Docker container
         command = MesosPb2.CommandInfo()
         command.value = self.build_command_line()
+        command.user = 'dilley'
 
         # Add the docker uri for logging into the remote repository
         command.uris.add().value = '/home/dilley/dockercfg.tar.gz'
@@ -627,13 +624,6 @@ def retrieve_command_line():
     description = 'ESPA Mesos Framework'
     parser = ArgumentParser(description=description)
 
-    parser.add_argument('--master-node',
-                        action='store',
-                        dest='master_node',
-                        required=True,
-                        metavar='IP',
-                        help='IP address of the Mesos master node')
-
     parser.add_argument('--job-filename',
                         action='store',
                         dest='job_filename',
@@ -656,7 +646,7 @@ def espa_framework(cfg):
     """
 
     framework = MesosPb2.FrameworkInfo()
-    framework.user = ''
+    framework.user = cfg.user
     framework.name = 'ESPA Framework'
     framework.principal = cfg.principal
     framework.role = cfg.role
@@ -708,7 +698,7 @@ def main():
 
     mesos_scheduler = ESPA_Scheduler(implicitAcknowledgements, executor, args)
     driver = MesosSchedulerDriver(mesos_scheduler, framework,
-                                  args.master_node, implicitAcknowledgements,
+                                  fw_cfg.zookeeper, implicitAcknowledgements,
                                   credentials)
 
     status = 0
