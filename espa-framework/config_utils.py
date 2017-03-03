@@ -64,7 +64,9 @@ def retrieve_cfg(filename):
 
 
 # Configuration information structure
-FrameworkConfigInfo = namedtuple('ConfigInfo', ('principal',
+FrameworkConfigInfo = namedtuple('ConfigInfo', ('zookeeper',
+                                                'user',
+                                                'principal',
                                                 'role',
                                                 'secret'))
 
@@ -84,6 +86,8 @@ def read_fw_configuration():
 
     section = 'framework'
 
-    return FrameworkConfigInfo(principal=cfg.get(section, 'principal'),
+    return FrameworkConfigInfo(zookeeper=cfg.get(section, 'zookeeper'),
+                               user=cfg.get(section, 'user'),
+                               principal=cfg.get(section, 'principal'),
                                role=cfg.get(section, 'role'),
                                secret=cfg.get(section, 'secret'))
