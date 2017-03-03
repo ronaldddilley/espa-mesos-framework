@@ -16,9 +16,6 @@
 
 set -e
 
-zookeeper='zk://localhost:2181,localhost:2182,localhost:2183/mesos'
 jobfile='jobs.json'
 
-./espa-framework.py \
-    --master-node ${zookeeper} \
-    --job-filename ${jobfile}
+./espa-framework.py --job-filename ${jobfile}
