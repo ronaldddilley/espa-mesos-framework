@@ -21,6 +21,7 @@ import logging
 import signal
 from argparse import ArgumentParser
 from threading import Thread
+from time import sleep
 
 
 import requests
@@ -34,6 +35,7 @@ import config_utils as config
 
 logger = None
 shutdown = None
+driver = None
 
 
 # Standard logging filter for using Mesos
@@ -112,7 +114,7 @@ class Shutdown():
 
     def shutdown(self, signum, frame):
         self.flag = True
-        logger.info("Shutdown requested.")
+        logger.info('Shutdown Requested')
 
 
 
@@ -214,6 +216,9 @@ class ESPA_Scheduler(MesosScheduler):
         self.framework_id = None
         self.master_node = None
         self.master_port = None
+
+        # Developer flags
+        self.dev_mode = args.dev_mode
         self.debug = args.debug
 
     def registered(self, driver, frameworkId, masterInfo):
@@ -274,8 +279,8 @@ class ESPA_Scheduler(MesosScheduler):
             return
 
         if not self.job_queue:
-            if self.debug > 1:
-                logger.debug('No Jobs To Process - Declining all offers')
+            if self.debug > 2:
+                logger.debug('No New Jobs To Process - Declining all offers')
             for offer in offers:
                 driver.declineOffer(offer.id)
             return
@@ -288,7 +293,7 @@ class ESPA_Scheduler(MesosScheduler):
                 continue
 
             if not self.job_queue:
-                if self.debug > 1:
+                if self.debug > 2:
                     logger.debug('No More Jobs To Process - Declining offer')
                 driver.declineOffer(offer.id)
                 continue
@@ -348,6 +353,7 @@ class ESPA_Scheduler(MesosScheduler):
         logger.info('Task {} is in state {}'
                     .format(task_id, MesosPb2.TaskState.Name(state)))
 
+# Don't throw this knowledge away
 #        if update.HasField('container_status'):
 #            logger.debug('Field [container_status] {}'.format(update.container_status))
 #        if update.HasField('data'):
@@ -358,8 +364,8 @@ class ESPA_Scheduler(MesosScheduler):
 #            logger.debug('Field [healthy] {}'.format(update.healthy))
 #        if update.HasField('labels'):
 #            logger.debug('Field [labels] {}'.format(update.labels))
-        if update.HasField('message'):
-            logger.debug('Field [message] {}'.format(update.message))
+#        if update.HasField('message'):
+#            logger.debug('Field [message] {}'.format(update.message))
 #        if update.HasField('reason'):
 #            logger.debug('Field [reason] {}'.format(update.reason))
 #        if update.HasField('slave_id'):
@@ -390,12 +396,9 @@ class ESPA_Scheduler(MesosScheduler):
             if self.debug > 3:
                 logger.debug('agent_id {}'.format(agent_id))
 
-        #for field in update.ListFields():
-        #    logger.info('Field {}'.format(field))
-
-        # This is an example of the task name built earlier
-        # Which can be used to specify to the database what to update
-        ### ESPA-docker-mode-LT05_L1TP_045028_20000403_20161005_01_A1
+# Don't throw this knowledge away
+#        for field in update.ListFields():
+#            logger.info('Field {}'.format(field))
 
         if (state == MesosPb2.TASK_FINISHED or
                 state == MesosPb2.TASK_LOST or
@@ -418,8 +421,10 @@ class ESPA_Scheduler(MesosScheduler):
                 if mount['Destination'] == '/mnt/mesos/sandbox':
                     logger.info('Logfile Location = {}:{}'
                                 .format(agent_hostname, mount['Source']))
-            #logger.info('Data {}'
-            #            .format(json.dumps(self.tasks[task_id], indent=4)))
+
+# Don't throw this knowledge away
+#            logger.info('Data {}'
+#                        .format(json.dumps(self.tasks[task_id], indent=4)))
 
             self.tasks_launched -= 1
             del self.tasks[task_id]
@@ -429,6 +434,11 @@ class ESPA_Scheduler(MesosScheduler):
             #     Set SUCCESS
             # else:
             #     Set ERROR/FAILURE
+
+        if shutdown.flag and self.tasks_launched == 0:
+            logger.info('All Tasks Accounted For')
+            if self.dev_mode:
+                driver.stop()
 
     def frameworkMessage(self, driver, executorId, slaveId, message):
         """Recieved a framework message so log it
@@ -571,11 +581,17 @@ class Job(object):
 
     def build_task_id(self):
 
+        # Example
+        # ESPA-espa-bt-LT05_L1TP_045028_20000403_20161005_01_A1
+
         order = self.job_info['order']
         return ('ESPA-{}-{}'.format(order['order-id'],
                                     order['input-product-id']))
 
     def build_task_name(self):
+
+        # Example
+        # ESPA espa-bt LT05_L1TP_045028_20000403_20161005_01_A1
 
         order = self.job_info['order']
         return ('ESPA {} {}'.format(order['order-id'],
@@ -711,6 +727,13 @@ def retrieve_command_line():
                         metavar='TEXT',
                         help='JSON job file to use')
 
+    parser.add_argument('--dev-mode',
+                        action='store_true',
+                        dest='dev_mode',
+                        required=False,
+                        default=False,
+                        help='Run in developer mode')
+
     parser.add_argument('--debug',
                         action='store',
                         dest='debug',
@@ -767,6 +790,7 @@ def main():
     """
 
     global shutdown
+    global driver
 
     args = retrieve_command_line()
 
@@ -791,7 +815,11 @@ def main():
     # driver.run() blocks, so run it in a separate thread.
     def run_driver_async():
         status = 0 if driver.run() == MesosPb2.DRIVER_STOPPED else 1
+
+        logger.debug('Stopping Driver')
         driver.stop()
+
+        logger.info('Terminating Framework')
         sys.exit(status)
 
     framework_thread = Thread(target = run_driver_async, args = ())
@@ -801,20 +829,14 @@ def main():
         # If a shutdown has been requested, suppress offers and wait for the
         # framework thread to complete.
         if shutdown.flag:
-            if self.debug > 0:
+            if args.debug > 0:
                 logger.debug('Suppressing Offers')
             driver.suppressOffers()
 
             while framework_thread.is_alive():
-                time.sleep(5)
+                sleep(5)
 
-            if self.debug > 0:
-                logger.debug('Stopping Driver')
-            driver.stop()
             break
-
-        # If we have more jobs then add them to the queue
-        self.job_queue.extend(get_jobs(args.job_filename))
 
         # If there's no new work to be done or the max number of jobs are
         # already running, suppress offers and wait for some jobs to finish.
@@ -823,24 +845,25 @@ def main():
 
             driver.suppressOffers()
 
-            if self.debug > 0:
+            if args.debug > 0:
                 logger.debug('Suppressing Offers')
 
             # Sleep until we have room for more tasks
             while (not shutdown.flag and
                     mesos_scheduler.tasks_launched == fw_cfg.max_jobs):
 
-                time.sleep(20)
+                sleep(20)
 
             # Sleep until more processing is requested
             while not shutdown.flag and not mesos_scheduler.job_queue:
-                mesos_scheduler.job_queue.extend(get_jobs(self.job_filename))
-                time.sleep(20)
+                mesos_scheduler.job_queue.extend(get_jobs(args.job_filename))
+                sleep(20)
 
-            driver.reviveOffers()
 
-            if self.debug > 0:
-                logger.debug('Reviving Offers')
+            if not shutdown.flag:
+                if args.debug > 0:
+                    logger.debug('Reviving Offers')
+                driver.reviveOffers()
 
 
 if __name__ == '__main__':
