@@ -18,4 +18,4 @@ set -e
 
 jobfile='jobs.json'
 
-./espa-framework.py --job-filename ${jobfile}
+espa-framework/espa-framework.py --job-filename ${jobfile} ${@}
