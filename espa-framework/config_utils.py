@@ -68,7 +68,8 @@ FrameworkConfigInfo = namedtuple('ConfigInfo', ('zookeeper',
                                                 'user',
                                                 'principal',
                                                 'role',
-                                                'secret'))
+                                                'secret',
+                                                'max_jobs'))
 
 
 # Name of the framework configuration file
@@ -90,4 +91,5 @@ def read_fw_configuration():
                                user=cfg.get(section, 'user'),
                                principal=cfg.get(section, 'principal'),
                                role=cfg.get(section, 'role'),
-                               secret=cfg.get(section, 'secret'))
+                               secret=cfg.get(section, 'secret'),
+                               max_jobs=cfg.get(section, 'max_jobs'))
