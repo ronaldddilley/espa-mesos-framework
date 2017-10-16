@@ -310,6 +310,11 @@ class ESPA_Scheduler(MesosScheduler):
                 elif resource.name == 'disk':
                     offerDisk += resource.scalar.value
 
+            if self.debug > 3:
+                logger.debug('Offer CPU {}'.format(offerCpus))
+                logger.debug('Offer MEM {}'.format(offerMem))
+                logger.debug('Offer DISK {}'.format(offerDisk))
+
             tasks = list()
             while (len(self.job_queue) > 0 and
                    self.job_queue[0].check_resources(offerCpus,
@@ -611,7 +616,7 @@ class Job(object):
         # TODO TODO TODO - Get a bunch of this stuff from a configuration file
         # Create container volumes
         output_volume = container.volumes.add()
-        output_volume.host_path = '/data2/dilley/output-data'
+        output_volume.host_path = '/data3/dilley/output-data'
         output_volume.container_path = '/home/espa/output-data'
         output_volume.mode = 1  # MesosPb2.Volume.Mode.RW
 
@@ -621,7 +626,7 @@ class Job(object):
         aux_volume.mode = 2  # MesosPb2.Volume.Mode.RO
 
         input_volume = container.volumes.add()
-        input_volume.host_path = '/data2/dilley/input-data'
+        input_volume.host_path = '/data3/dilley/input-data'
         input_volume.container_path = '/home/espa/input-data'
         input_volume.mode = 2  # MesosPb2.Volume.Mode.RO
 
