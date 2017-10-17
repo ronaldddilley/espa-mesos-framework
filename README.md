@@ -1,1 +1,1 @@
-# PROTOTYPE espa-mesos-framework
+# PROTOTYPE mesos-framework
