@@ -4,7 +4,7 @@ FROM centos:7.3.1611
 MAINTAINER USGS EROS LSRD http://eros.usgs.gov
 
 
-LABEL description="ESPA (EROS Science Processing Architecture) Mesos Framework"
+LABEL description="(Processing Architecture) Mesos Framework"
 
 
 # Update the OS packages to the latest versions
@@ -29,6 +29,9 @@ RUN yum install -y \
 RUN pip install --upgrade pip
 
 
+# The latest versions of Mesos require svn development package >= 1.9
+COPY wandisco-svn.repo /etc/yum.repos.d/wandisco-svn.repo
+
 # Install the mesosphere repo and install mesos from that repo
 RUN yum -y install http://repos.mesosphere.io/el/7/noarch/RPMS/mesosphere-el-repo-7-3.noarch.rpm \
     && yum install -y mesos \
@@ -36,7 +39,7 @@ RUN yum -y install http://repos.mesosphere.io/el/7/noarch/RPMS/mesosphere-el-rep
 
 
 # Install python access to the protobuf
-RUN pip install protobuf
+RUN pip install protobuf requests
 
 
 # Set the Mesos SSL environment variables.
@@ -52,4 +55,5 @@ RUN pip install protobuf
 
 
 COPY config_utils.py /usr/bin/
+COPY espa_base_exception.py /usr/bin/
 COPY espa-framework.py /usr/bin/
