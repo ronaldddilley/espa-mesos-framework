@@ -12,7 +12,7 @@ project ( espa )
 
 
 set ( SYSTEM_NAME espa )
-set ( SYSTEM_VERSION 2.16.0 )
+set ( SYSTEM_VERSION 10.0.0 )
 
 
 add_subdirectory ( espa-framework )
