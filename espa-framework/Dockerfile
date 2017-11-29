@@ -9,20 +9,20 @@ LABEL description="(Processing Architecture) Mesos Framework"
 
 # Update the OS packages to the latest versions
 RUN yum update -y \
-    && yum clean metadata
+    && yum clean all
 
 
 # Install the epel so we can get some good stuff
 RUN yum install -y \
         epel-release \
-    && yum clean metadata
+    && yum clean all
 
 
 # Initial Python Configuration
 RUN yum install -y \
         python-pip \
         python-devel \
-    && yum clean metadata
+    && yum clean all
 
 
 # Update pip
@@ -35,7 +35,7 @@ COPY wandisco-svn.repo /etc/yum.repos.d/wandisco-svn.repo
 # Install the mesosphere repo and install mesos from that repo
 RUN yum -y install http://repos.mesosphere.io/el/7/noarch/RPMS/mesosphere-el-repo-7-3.noarch.rpm \
     && yum install -y mesos \
-    && yum clean metadata
+    && yum clean all
 
 
 # Install python access to the protobuf
